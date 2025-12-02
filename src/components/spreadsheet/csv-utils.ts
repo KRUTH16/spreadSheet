@@ -1,7 +1,6 @@
 import { Sheet, Cell } from './types'; // Adjust path if needed
 
 export class CsvUtils {
-
   static sheetToCSV(sheet: Sheet): string {
     return sheet
       .map(row =>
@@ -14,7 +13,7 @@ export class CsvUtils {
             }
             return raw;
           })
-          .join(',')
+          .join(','),
       )
       .join('\n');
   }
