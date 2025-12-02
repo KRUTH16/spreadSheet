@@ -23,7 +23,6 @@
 
 //     console.log("Values in range:", values);
 
-
 //     switch (type) {
 //       case 'SUM': return values.reduce((a, b) => a + b, 0);
 //       case 'AVG': return values.reduce((a, b) => a + b, 0) / values.length;
@@ -44,7 +43,7 @@
 //         console.log("Cell Value:", this.sheet[r][c].value);
 //             let value = this.sheet[r][c].value;
 //             if (!value) value = "0";
-//             value = value.replace(/[^0-9.-]/g, '');  
+//             value = value.replace(/[^0-9.-]/g, '');
 //             const val = parseFloat(value) || 0;
 //             vals.push(val);
 
@@ -79,7 +78,6 @@
 //         value = value.replace(/[^0-9.-]/g, '');  // sanitize here too
 //          return value || '0';
 
-        
 //         // return this.sheet[row][col].value || '0';
 //       });
 
@@ -90,7 +88,6 @@
 //   }
 // }
 
-
 import { Sheet } from './types';
 
 export class FormulaEngine {
@@ -100,20 +97,20 @@ export class FormulaEngine {
     const expr = formula.substring(1).trim();
     const upper = expr.toUpperCase();
 
+    if (upper.startsWith('DOUBLE')) return this.funcDouble(expr, sheet);
+    if (upper.startsWith('LEN')) return this.funcLen(expr, sheet);
+    if (upper.startsWith('CONCAT')) return this.funcConcat(expr, sheet);
+    if (upper.startsWith('COUNT')) return this.funcCount(expr, sheet);
+
     if (upper.startsWith('SUM')) return this.aggregate(upper, sheet, 'SUM');
     if (upper.startsWith('AVG')) return this.aggregate(upper, sheet, 'AVG');
     if (upper.startsWith('MIN')) return this.aggregate(upper, sheet, 'MIN');
     if (upper.startsWith('MAX')) return this.aggregate(upper, sheet, 'MAX');
 
-    
     return this.calculateExpression(expr, sheet);
   }
 
-  private aggregate(
-    expr: string,
-    sheet: Sheet,
-    type: 'SUM' | 'AVG' | 'MIN' | 'MAX'
-  ): number {
+  private aggregate(expr: string, sheet: Sheet, type: 'SUM' | 'AVG' | 'MIN' | 'MAX'): number {
     const match = expr.match(/\((.*)\)/);
     if (!match) return 0;
 
@@ -167,7 +164,7 @@ export class FormulaEngine {
 
     while (
       upper.charCodeAt(i) >= 65 && // 'A'
-      upper.charCodeAt(i) <= 90    // 'Z'
+      upper.charCodeAt(i) <= 90 // 'Z'
     ) {
       col = col * 26 + (upper.charCodeAt(i) - 64);
       i++;
@@ -193,5 +190,52 @@ export class FormulaEngine {
     } catch {
       return '#ERROR';
     }
+  }
+
+  private funcDouble(expr: string, sheet: Sheet): number {
+    const match = expr.match(/\((.*)\)/);
+    if (!match) return 0;
+
+    const ref = match[1].trim();
+    const { row, col } = this.cellToIndices(ref);
+    const raw = sheet[row]?.[col]?.value ?? '0';
+    const cleaned = raw.toString().replace(/[^0-9.-]/g, '');
+    return (parseFloat(cleaned) || 0) * 2;
+  }
+
+  // 2️⃣ LEN(A1)
+  private funcLen(expr: string, sheet: Sheet): number {
+    const match = expr.match(/\((.*)\)/);
+    if (!match) return 0;
+
+    const ref = match[1].trim();
+    const { row, col } = this.cellToIndices(ref);
+    const raw = sheet[row]?.[col]?.value ?? '';
+    return raw.toString().length;
+  }
+
+  // 3️⃣ CONCAT(A1, B1)
+  private funcConcat(expr: string, sheet: Sheet): string {
+    const match = expr.match(/\((.*)\)/);
+    if (!match) return '';
+
+    const refs = match[1].split(',').map(s => s.trim());
+    let out = '';
+
+    for (const ref of refs) {
+      const { row, col } = this.cellToIndices(ref);
+      out += sheet[row]?.[col]?.value ?? '';
+    }
+    return out;
+  }
+
+  // 4️⃣ COUNT(A1:A5)
+  private funcCount(expr: string, sheet: Sheet): number {
+    const match = expr.match(/\((.*)\)/);
+    if (!match) return 0;
+
+    const range = match[1].trim();
+    const values = this.getRangeValues(sheet, range);
+    return values.length;
   }
 }

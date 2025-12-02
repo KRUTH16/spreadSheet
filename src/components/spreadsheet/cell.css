@@ -1,10 +1,8 @@
 
-
 :host {
   display: block;
 }
 
-/* ---------- CELLS ---------- */
 
 .cell {
   min-width: 96px;
@@ -16,13 +14,38 @@
   box-sizing: border-box;
   overflow: hidden;
   white-space: nowrap;
+    position: relative;
 }
 
 
 .cell.selected {
   outline: 2px solid #1a73e8;  
   outline-offset: -1px;
-  background: white;          
+  background: white;  
+   z-index: 5;        
+}
+.cell.selected::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #1a73e8;
+  border-radius: 1px;
+  cursor: crosshair;
+}
+
+.cell.range {
+  background: #e8f0fe !important;
+}
+
+.cell.range::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px dashed #1a73e8;
+  pointer-events: none;
 }
 
 .cell {
@@ -30,30 +53,5 @@
   height: var(--cell-height, 21px);
    line-height: var(--cell-height, 21px);
 }
+ 
 
-:host([isinrange="true"]) .cell {
-  background-color: rgba(0, 120, 215, 0.15); /* light blue */
-  border: 1px solid rgba(0, 120, 215, 0.3);
-}
-
-:host([isselected="true"]) .cell {
-  outline: 2px solid #0078d7; /* Dark blue active cell */
-  position: relative;
-}
-
-:host([isselected="true"]) .cell::after {
-  /* Fill handle */
-  content: "";
-  width: 6px;
-  height: 6px;
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  background: #0078d7;
-  border-radius: 1px;
-}
-
-.cell.inrange {
-  background-color: rgba(0, 120, 215, 0.15); /* light blue */
-  border: 1px solid rgba(0, 120, 215, 0.3);
-}

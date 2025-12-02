@@ -1,4 +1,4 @@
-import { Component, h, Prop, Event, EventEmitter, State, Element, Watch } from '@stencil/core';
+import { Component, h, Prop, Event, EventEmitter, State, Element, Watch, Listen } from '@stencil/core';
 import { Cell } from './types';
 
 @Component({
@@ -28,14 +28,46 @@ export class AppCell {
 
   @State() isEditing: boolean = false;
 
-
   @Watch('isSelected')
   resetEdit() {
     this.isEditing = false;
     this.hasEmitted = false;
   }
 
+  @Listen('keydown', { target: 'window' })
+  handleGlobalKeyDown(e: KeyboardEvent) {
+    if (!this.isSelected) return; // Only act if this cell is selected
+    if (this.isEditing) return; // If already editing → don't restart editing
 
+    // ⭐ Enter-to-edit
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.startEditing();
+      return;
+    }
+
+    // ⭐ Typing-to-edit
+    const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+
+    if (isPrintable) {
+      this.startEditing();
+
+      setTimeout(() => {
+        const el = this.element.shadowRoot?.querySelector('div');
+        if (el) {
+          el.textContent = e.key;
+
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          range.collapse(false);
+
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }, 0);
+    }
+  }
 
   private onBlurHandler(e: UIEvent) {
     setTimeout(() => {
@@ -68,7 +100,6 @@ export class AppCell {
     }
   }
 
-
   private startEditing() {
     this.hasEmitted = false;
     this.isEditing = true;
@@ -78,7 +109,7 @@ export class AppCell {
 
       if (el) {
         el.textContent = this.cell.value ?? '';
-   
+
         el.focus();
 
         // Place cursor at end
@@ -93,7 +124,6 @@ export class AppCell {
   }
 
   render() {
-    
     const cell = this.cell ?? { value: '', formula: undefined, style: {} };
     const style = cell.style ?? {};
 
@@ -112,7 +142,7 @@ export class AppCell {
         }}
         contentEditable={this.isEditing}
         // onClick={() => this.cellSelected.emit({ row: this.row, col: this.col })}
-        onClick={() => {
+        onClick={e => {
           if (!this.isEditing) {
             this.cellSelected.emit({ row: this.row, col: this.col });
           }

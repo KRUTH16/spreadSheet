@@ -33,7 +33,8 @@ export class AppSpreadsheet {
   @State() fillStartRow: number = 0;
   @State() fillStartCol: number = 0;
 
-  
+  @State() sheetName: string = 'Untitled Spreadsheet';
+
   private readonly DEFAULT_ROW_HEIGHT = 21;
   private lastChangedRow: number | null = null;
   private lastChangedCol: number | null = null;
@@ -67,14 +68,35 @@ export class AppSpreadsheet {
     console.log(`📌 cellSelected → now selected (${row},${col}) value="${cell.value}", formula="${cell.formula}"`);
   }
 
-
-
   @Listen('keydown', { target: 'window' })
   handleKeyDown(e: KeyboardEvent) {
     const row = this.selectedRow;
     const col = this.selectedCol;
 
-    // --- Undo / Redo ---
+    if (e.ctrlKey && e.key === 'Home') {
+      e.preventDefault();
+      this.selectCell(0, 0);
+      return;
+    }
+
+    if (e.ctrlKey && e.key === 'End') {
+      e.preventDefault();
+      this.selectCell(this.sheet.length - 1, this.sheet[0].length - 1);
+      return;
+    }
+
+    if (!e.ctrlKey && e.key === 'Home') {
+      e.preventDefault();
+      this.selectCell(row, 0);
+      return;
+    }
+
+    if (!e.ctrlKey && e.key === 'End') {
+      e.preventDefault();
+      this.selectCell(row, this.sheet[0].length - 1);
+      return;
+    }
+
     if (e.ctrlKey || e.metaKey) {
       if (e.key === 'z' || e.key === 'Z') {
         e.preventDefault();
@@ -88,104 +110,88 @@ export class AppSpreadsheet {
       }
     }
 
-    // --- Copy ---
     if (e.ctrlKey && e.key === 'c') {
-      this.copyCell();
+      const { r1, r2, c1, c2 } = this.selectionRange;
+      const isMulti = !(r1 === r2 && c1 === c2);
+
+      if (isMulti) this.copyCellRange();
+      else this.copyCell();
+
       return;
     }
 
-    // --- Paste ---
     if (e.ctrlKey && e.key === 'v') {
-      this.pasteCell();
+      const isMulti = Array.isArray(this.clipboardValue);
+
+      if (isMulti) this.pasteCellRange();
+      else this.pasteCell();
+
       return;
     }
 
-    // --- Delete Key ---
+    if (e.shiftKey) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          this.rangeEndRow = Math.min(this.sheet.length - 1, this.rangeEndRow + 1);
+          return;
+        case 'ArrowUp':
+          e.preventDefault();
+          this.rangeEndRow = Math.max(0, this.rangeEndRow - 1);
+          return;
+        case 'ArrowRight':
+          e.preventDefault();
+          this.rangeEndCol = Math.min(this.sheet[0].length - 1, this.rangeEndCol + 1);
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          this.rangeEndCol = Math.max(0, this.rangeEndCol - 1);
+          return;
+      }
+      // If SHIFT + printable character → allow typing
+    }
+
     if (e.key === 'Delete') {
+      e.preventDefault();
       this.clearCellValue(row, col);
       return;
     }
 
-    // --- Enter: Start editing ---
     if (e.key === 'Enter') {
       const active = document.querySelector('app-cell[selected="true"]') as HTMLElement;
       if (active) active.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       return;
     }
 
-    // --- Arrow Keys for Navigation ---
     switch (e.key) {
       case 'ArrowUp':
         this.selectCell(Math.max(0, row - 1), col);
-        break;
+        return;
+
       case 'ArrowDown':
         this.selectCell(Math.min(this.sheet.length - 1, row + 1), col);
-        break;
+        return;
+
       case 'ArrowLeft':
         this.selectCell(row, Math.max(0, col - 1));
-        break;
+        return;
+
       case 'ArrowRight':
         this.selectCell(row, Math.min(this.sheet[0].length - 1, col + 1));
-        break;
-    }
-
-    if (e.key === 'Home') {
-      this.selectCell(row, 0);
-      return;
-    }
-
-    if (e.key === 'End') {
-      this.selectCell(row, this.sheet[0].length - 1);
-      return;
-    }
-
-    if (e.ctrlKey && e.key === 'Home') {
-      this.selectCell(0, 0);
-      return;
+        return;
     }
 
     const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+
     if (isPrintable) {
       const active = document.querySelector('app-cell[selected="true"]') as HTMLElement;
       if (active) active.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-
-      // Allow typing the actual key
-      return;
-    }
-
-    // SHIFT + Arrow = expand range
-    if (e.shiftKey) {
-      switch (e.key) {
-        case 'ArrowDown':
-          this.rangeEndRow = Math.min(this.sheet.length - 1, this.rangeEndRow + 1);
-          break;
-        case 'ArrowUp':
-          this.rangeEndRow = Math.max(0, this.rangeEndRow - 1);
-          break;
-        case 'ArrowRight':
-          this.rangeEndCol = Math.min(this.sheet[0].length - 1, this.rangeEndCol + 1);
-          break;
-        case 'ArrowLeft':
-          this.rangeEndCol = Math.max(0, this.rangeEndCol - 1);
-          break;
-      }
-      return;
-    }
-
-    if (e.ctrlKey && e.key === 'c') {
-      this.copyCellRange();
-      return;
-    }
-
-    if (e.ctrlKey && e.key === 'v') {
-      this.pasteCellRange();
       return;
     }
   }
 
   private textColorInput?: HTMLInputElement;
   private bgColorInput?: HTMLInputElement;
-
 
   private cloneSheet(sheet: Sheet): Sheet {
     return sheet.map(row =>
@@ -210,15 +216,12 @@ export class AppSpreadsheet {
   private restoreSnapshot(snap: SpreadsheetSnapshot) {
     console.log('⏪ restoreSnapshot');
 
-    
-
     this.sheet = this.cloneSheet(snap.sheet);
     this.selectedRow = snap.selectedRow;
     this.selectedCol = snap.selectedCol;
 
     this.columnWidths = [...snap.columnWidths];
     this.rowHeights = [...snap.rowHeights];
-
 
     this.sheet = [...this.sheet];
 
@@ -230,8 +233,6 @@ export class AppSpreadsheet {
   private history: SpreadsheetSnapshot[] = [];
   private future: SpreadsheetSnapshot[] = [];
   private readonly MAX_HISTORY = 50;
-
-
 
   private pushHistory() {
     //  this.recalculateFormulas();
@@ -327,8 +328,6 @@ export class AppSpreadsheet {
     console.log('📋 Copied:', this.clipboardValue);
   }
 
-
-
   pasteCell() {
     // nothing copied → nothing to paste
     if (!this.clipboardValue) return;
@@ -347,6 +346,7 @@ export class AppSpreadsheet {
     console.log(`📌 Pasting "${value}" into ${this.getColumnName(col)}${row + 1}`);
 
     this.updateCellValue(row, col, value);
+    this.recalculateFormulas();
   }
 
   clearCellValue(row: number, col: number) {
@@ -360,6 +360,17 @@ export class AppSpreadsheet {
     const c2 = Math.max(this.rangeStartCol, this.rangeEndCol);
 
     return { r1, r2, c1, c2 };
+  }
+
+  getSelectedRangeLabel(): string {
+    const { r1, r2, c1, c2 } = this.selectionRange;
+
+    const start = `${this.getColumnName(c1)}${r1 + 1}`;
+    const end = `${this.getColumnName(c2)}${r2 + 1}`;
+
+    if (start === end) return start; // single cell
+
+    return `${start}:${end}`;
   }
 
   copyCellRange() {
@@ -567,8 +578,6 @@ export class AppSpreadsheet {
     this.rangeEndCol = col;
   }
 
-
-
   updateCellValue(row: number, col: number, value: string) {
     const prevValue = this.sheet[row][col].value;
     if (prevValue === value) return;
@@ -599,8 +608,6 @@ export class AppSpreadsheet {
     return this.formulaDraft;
   }
 
-
-
   onFormulaInput(value: string) {
     this.formulaDraft = value;
   }
@@ -617,8 +624,6 @@ export class AppSpreadsheet {
 
     this.recalculateFormulas();
   }
-
- 
 
   applyFormula() {
     const row = this.selectedRow;
@@ -644,7 +649,6 @@ export class AppSpreadsheet {
       cell.formula = undefined;
     }
 
-  
     this.sheet = sheetCopy;
     this.recalculateFormulas();
     console.log('📐 After applyFormula+recalc → A1 =', this.sheet[0]?.[0]?.value ?? '');
@@ -698,6 +702,14 @@ export class AppSpreadsheet {
     // this.pushHistory();
   }
 
+  componentDidLoad() {
+    // Automatically select A1 at load
+    this.selectCell(0, 0);
+
+    // Make sure formula bar displays A1 value/formula
+    const cell = this.sheet[0][0];
+    this.formulaDraft = cell.formula ?? cell.value ?? '';
+  }
 
   render() {
     const baseRowHeight = this.rowHeights[0] || this.DEFAULT_ROW_HEIGHT;
@@ -711,15 +723,37 @@ export class AppSpreadsheet {
     return (
       <div class="spreadsheet-container">
         <div class="header">
+          <div class="title-bar">
+            <div class="sheet-icon">
+              <svg class="sheet-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path fill="#0F9D58" d="M40 14L28 2H10C7.8 2 6 3.8 6 6v36c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V14z" />
+                <path fill="#34A853" d="M28 2v10c0 2.2 1.8 4 4 4h10" />
+                <rect width="20" height="2" x="14" y="20" fill="#FFF" />
+                <rect width="20" height="2" x="14" y="26" fill="#FFF" />
+                <rect width="20" height="2" x="14" y="32" fill="#FFF" />
+              </svg>
+            </div>
+            <input class="sheet-name-input" value={this.sheetName} onInput={e => (this.sheetName = (e.target as HTMLInputElement).value)} />
+          </div>
           <div class="toolbar">
-            <button onClick={() => this.undo()}>↺</button>
-            <button onClick={() => this.redo()}>↻</button>
-            <button onClick={() => this.applyCellStyle('bold')}>𝗕</button>
-            <button onClick={() => this.applyCellStyle('italic')}>𝘐</button>
-            <button onClick={() => this.applyCellStyle('underline')}>U</button>
+            <button title="Undo" onClick={() => this.undo()}>
+              ↺
+            </button>
+            <button title="Redo" onClick={() => this.redo()}>
+              ↻
+            </button>
+            <button title="Bold" onClick={() => this.applyCellStyle('bold')}>
+              𝗕
+            </button>
+            <button title="Italic" onClick={() => this.applyCellStyle('italic')}>
+              𝘐
+            </button>
+            <button title="Underline" onClick={() => this.applyCellStyle('underline')}>
+              U
+            </button>
 
             <div class="color-picker">
-              <button class="icon-btn" onClick={() => this.textColorInput?.click()}>
+              <button class="icon-btn" title="Text Color" onClick={() => this.textColorInput?.click()}>
                 <i class="icon-text-color"></i>
               </button>
               <input
@@ -731,7 +765,7 @@ export class AppSpreadsheet {
             </div>
 
             <div class="color-picker">
-              <button class="icon-btn" onClick={() => this.bgColorInput?.click()}>
+              <button class="icon-btn" title="Fill Color" onClick={() => this.bgColorInput?.click()}>
                 <i class="icon-fill-color"></i>
               </button>
               <input
@@ -742,7 +776,7 @@ export class AppSpreadsheet {
               />
             </div>
 
-            <select class="align-dropdown" onInput={e => this.applyCellStyle('align', (e.target as HTMLSelectElement).value)}>
+            <select class="align-dropdown" title="Alignment" onInput={e => this.applyCellStyle('align', (e.target as HTMLSelectElement).value)}>
               <option value="" disabled selected>
                 Align
               </option>
@@ -751,12 +785,10 @@ export class AppSpreadsheet {
               <option value="right">right</option>
             </select>
 
-  
-
-            <button class="csv-btn" onClick={() => this.importInput?.click()}>
+            <button class="csv-btn" title="Import CSV" onClick={() => this.importInput?.click()}>
               📥 Import
             </button>
-            <button class="csv-btn" onClick={() => this.exportCSV()}>
+            <button class="csv-btn" title="Export CSV" onClick={() => this.exportCSV()}>
               📤 Export
             </button>
 
@@ -764,7 +796,15 @@ export class AppSpreadsheet {
           </div>
 
           <div class="formula-bar">
-            <span>{this.getCellAddress()}</span>
+            {/* <span>{this.getCellAddress()}</span> */}
+            <span>
+              {
+                this.selectionRange.r1 === this.selectionRange.r2 && this.selectionRange.c1 === this.selectionRange.c2
+                  ? this.getCellAddress() // A1
+                  : this.getSelectedRangeLabel() // A1:B2
+              }
+            </span>
+
             <input
               value={this.getCellFormulaOrValue()}
               onInput={e => this.onFormulaInput((e.target as HTMLInputElement).value)}
@@ -808,6 +848,8 @@ export class AppSpreadsheet {
                       col={cIndex}
                       isInRange={rIndex >= this.selectionRange.r1 && rIndex <= this.selectionRange.r2 && cIndex >= this.selectionRange.c1 && cIndex <= this.selectionRange.c2}
                       onCellSelected={event => this.selectCell(event.detail.row, event.detail.col)}
+                      // onMouseDown={() => this.startDragSelection(rIndex, cIndex)}
+
                       isSelected={this.selectedRow === rIndex && this.selectedCol === cIndex}
                       style={{
                         '--cell-width': `${this.columnWidths[cIndex]}px`,
