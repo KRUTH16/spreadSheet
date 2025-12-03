@@ -1,16 +1,37 @@
- .spreadsheet-container {
+  html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;    
+}
+
+  
+  
+   .spreadsheet-container {
   position: relative;
   width: 100%;
   height: 100%;
   display: block;
-  overflow: visible;
+  overflow: visible; 
 }
 
 .grid-viewport {
+  height: 420px;
+  overflow-y: auto;
+  position: relative;
+}
+
+
+/* 
+.grid-viewport {
+  flex: 1;
   overflow: auto;
   position: relative;
-  height: calc(100vh - 120px);
-}
+  background: #fff;
+  min-height: 0;
+} */
+
+
 
 
 
@@ -194,11 +215,7 @@ select.align-dropdown:hover {
   cursor: row-resize;
 }
 
-.grid-viewport {
-  height: 450px;
-  overflow-y: auto;
-  position: relative;
-}
+
 
 .spacer-top,
 .spacer-bottom {
@@ -290,5 +307,6 @@ select.align-dropdown:hover {
   background: white;
   border: 1px solid #a8c0ff;
 } 
+
 
 

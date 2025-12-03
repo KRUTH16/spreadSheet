@@ -257,21 +257,33 @@ export class AppSpreadsheet {
     }
   }
 
+
+
   private onGridScroll(e: UIEvent) {
-    const target = e.target as HTMLElement;
-    const scrollTop = target.scrollTop;
-    const viewportHeight = target.clientHeight;
+  const target = e.target as HTMLElement;
 
-    const baseRowHeight = this.rowHeights[0] || this.DEFAULT_ROW_HEIGHT;
+  const scrollTop = target.scrollTop;
+  const viewportHeight = target.clientHeight;
+  const baseRowHeight = this.rowHeights[0] || this.DEFAULT_ROW_HEIGHT;
 
-    const buffer = 5; // extra rows above/below for smoothness
+  const visibleRows = Math.ceil(viewportHeight / baseRowHeight);
 
-    const start = Math.floor(scrollTop / baseRowHeight) - buffer;
-    const end = Math.ceil((scrollTop + viewportHeight) / baseRowHeight) + buffer;
+  const buffer = 5;
 
-    this.visibleStartRow = Math.max(0, start);
-    this.visibleEndRow = Math.min(this.sheet.length - 1, end);
+  const rawStart = Math.floor(scrollTop / baseRowHeight) - buffer;
+  const rawEnd = rawStart + visibleRows + buffer * 2;
+
+  this.visibleStartRow = Math.max(0, rawStart);
+  this.visibleEndRow = Math.min(this.sheet.length - 1, rawEnd);
+
+  if (this.visibleEndRow - this.visibleStartRow < visibleRows) {
+    this.visibleEndRow = Math.min(
+      this.visibleStartRow + visibleRows,
+      this.sheet.length - 1
+    );
   }
+}
+
 
   private exportCSV() {
     const csv = CsvUtils.sheetToCSV(this.sheet);
@@ -722,7 +734,7 @@ export class AppSpreadsheet {
 
     return (
       <div class="spreadsheet-container">
-        <div class="header">
+      
           <div class="title-bar">
             <div class="sheet-icon">
               <svg class="sheet-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -811,7 +823,7 @@ export class AppSpreadsheet {
               onKeyDown={e => e.key === 'Enter' && this.applyFormula()}
             />
           </div>
-        </div>
+      
 
         {/* 🔹 Scrollable viewport */}
         <div class="grid-viewport" onScroll={e => this.onGridScroll(e)}>
